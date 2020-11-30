@@ -67,6 +67,14 @@ void AFGPlayer::Tick(float DeltaTime)
 		Server_SendLocation(GetActorLocation());
 		Server_SendRotation(GetActorRotation());
 	}
+	else
+	{
+		const FVector NewPos = FMath::VInterpTo(GetActorLocation(), InterpTargetLocation, DeltaTime, InterpSpeedLocation);
+		SetActorLocation(NewPos);
+
+		const FRotator NewRot = FMath::RInterpTo(GetActorRotation(), InterpTargetRotation, DeltaTime, InterpSpeedRotation);
+		SetActorRotation(NewRot);
+	}
 }
 
 void AFGPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -99,7 +107,7 @@ void AFGPlayer::Mulitcast_SendLcation_Implementation(const FVector& LocationToSe
 {
 	if (!IsLocallyControlled())
 	{
-		SetActorLocation(LocationToSend);
+		InterpTargetLocation = LocationToSend;
 	}
 }
 
@@ -112,7 +120,7 @@ void AFGPlayer::Mulitcast_SendRotation_Implementation(const FRotator& RotationTo
 {
 	if (!IsLocallyControlled())
 	{
-		SetActorRotation(RotationToSend);
+		InterpTargetRotation = RotationToSend;
 	}
 }
 

@@ -70,6 +70,16 @@ private:
 	float MovementVelocity = 0.0F;
 	float Yaw = 0.0F;
 
+	UPROPERTY(EditAnywhere, Category = Movement)
+	float InterpSpeedLocation = 5.0F;
+
+	FVector InterpTargetLocation = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, Category = Movement)
+	float InterpSpeedRotation = 5.0F;
+
+	FRotator InterpTargetRotation = FRotator::ZeroRotator;
+
 	bool bIsBraking = false;
 
 	UPROPERTY(VisibleDefaultsOnly, Category = Collision)
