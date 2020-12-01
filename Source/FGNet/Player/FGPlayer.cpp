@@ -9,6 +9,8 @@
 #include "GameFramework/PlayerState.h"
 #include "Camera/CameraComponent.h"
 #include "Engine/NetDriver.h"
+#include "GameFramework/GameStateBase.h"
+
 
 AFGPlayer::AFGPlayer()
 {
@@ -29,14 +31,19 @@ AFGPlayer::AFGPlayer()
 
 	MovementComponent = CreateDefaultSubobject<UFGMovementComponent>(TEXT("MovementComponent"));
 
+
 	SetReplicateMovement(false);
+	LastPositions.Init({}, NumMovesStored);
 }
 
 void AFGPlayer::BeginPlay()
 {
 	Super::BeginPlay();
+	LastPositions.Init({}, NumMovesStored);
+	PredictedLocation = GetActorLocation();
 
 	MovementComponent->SetUpdatedComponent(CollisionComponent);
+
 }
 
 void AFGPlayer::Tick(float DeltaTime)
@@ -66,11 +73,12 @@ void AFGPlayer::Tick(float DeltaTime)
 
 		Server_SendLocation(GetActorLocation());
 		Server_SendRotation(GetActorRotation());
+
+		//Server_SendMoveData_Implementation({ GetActorLocation(), GetActorRotation(), GameStateCachedPtr->GetServerWorldTimeSeconds() });
 	}
 	else
 	{
-		const FVector NewPos = FMath::VInterpTo(GetActorLocation(), InterpTargetLocation, DeltaTime, InterpSpeedLocation);
-		SetActorLocation(NewPos);
+		PredictedLocationUpdate(DeltaTime);
 
 		const FRotator NewRot = FMath::RInterpTo(GetActorRotation(), InterpTargetRotation, DeltaTime, InterpSpeedRotation);
 		SetActorRotation(NewRot);
@@ -101,13 +109,14 @@ int32 AFGPlayer::GetPing() const
 void AFGPlayer::Server_SendLocation_Implementation(const FVector& LocationToSend)
 {
 	Mulitcast_SendLcation(LocationToSend);
+	
 }
 
 void AFGPlayer::Mulitcast_SendLcation_Implementation(const FVector& LocationToSend)
 {
 	if (!IsLocallyControlled())
 	{
-		InterpTargetLocation = LocationToSend;
+		AppendLastPositions(LocationToSend);
 	}
 }
 
@@ -122,6 +131,35 @@ void AFGPlayer::Mulitcast_SendRotation_Implementation(const FRotator& RotationTo
 	{
 		InterpTargetRotation = RotationToSend;
 	}
+}
+
+void AFGPlayer::AppendLastPositions(const FVector& Location)
+{
+	
+	for (int32 i = 1; i < LastPositions.Num(); ++i)
+	{
+		LastPositions[i - 1] = LastPositions[i];
+	}
+	LastPositions[LastMoveIndex] = Location;
+
+	FVector Deltas = FVector::ZeroVector;
+
+	for (int32 i = 1; i < LastPositions.Num(); ++i)
+	{
+		Deltas += LastPositions[i] - LastPositions[i - 1];
+	}
+	const FVector DeltaAvg = Deltas / LastPositions.Num();
+
+	PredictedLocation = LastPositions[LastMoveIndex] + PredictAheadAmount * DeltaAvg;
+
+}
+
+void AFGPlayer::PredictedLocationUpdate(float DeltaTime)
+{
+	const FVector StartPos = LastPositions[LastMoveIndex];
+	FVector ActualPos = FMath::VInterpTo(GetActorLocation(), PredictedLocation, DeltaTime, InterpSpeedLocation);
+	
+	SetActorLocation(ActualPos);
 }
 
 void AFGPlayer::Handle_Accelerate(float Value)

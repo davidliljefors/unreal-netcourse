@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GameFramework/Pawn.h"
+#include "Containers/Array.h"
 #include "FGPlayer.generated.h"
 
 class UCameraComponent;
@@ -58,7 +59,14 @@ public:
 	UFUNCTION(NetMulticast, Unreliable)
 	void Mulitcast_SendRotation(const FRotator& RotationToSend);
 
+	void AppendLastPositions(const FVector& Location);
+
+	void PredictedLocationUpdate(float DeltaTime);
+	
 private:
+	static constexpr int32 NumMovesStored = 8;
+	static constexpr int32 LastMoveIndex = NumMovesStored - 1;
+
 	void Handle_Accelerate(float Value);
 	void Handle_Turn(float Value);
 	void Handle_BrakePressed();
@@ -79,6 +87,13 @@ private:
 	float InterpSpeedRotation = 5.0F;
 
 	FRotator InterpTargetRotation = FRotator::ZeroRotator;
+
+	TArray<FVector, TFixedAllocator<NumMovesStored>> LastPositions;
+
+	UPROPERTY(EditAnywhere, Category = Movement)
+	float PredictAheadAmount = 3.0F;
+	
+	FVector PredictedLocation = FVector::ZeroVector;
 
 	bool bIsBraking = false;
 
