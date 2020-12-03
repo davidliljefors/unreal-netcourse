@@ -2,6 +2,9 @@
 
 #include "GameFramework/Pawn.h"
 #include "Containers/Array.h"
+#include "TimerManager.h"
+#include "Engine/EngineTypes.h"
+
 #include "FGPlayer.generated.h"
 
 class UCameraComponent;
@@ -9,6 +12,29 @@ class USpringArmComponent;
 class UFGMovementComponent;
 class UStaticMeshComponent;
 class USphereComponent;
+
+
+
+USTRUCT()
+struct FNetLocationData
+{
+	GENERATED_BODY()
+
+	FNetLocationData() = default;
+
+	FNetLocationData(const FVector& InLocation, const FVector& InVelocity, float InTimestamp)
+		:Location(InLocation), Velocity(InVelocity), Timestamp(InTimestamp)
+	{}
+
+	UPROPERTY()
+	FVector Location = FVector::ZeroVector;
+
+	UPROPERTY()
+	FVector Velocity = FVector::ZeroVector;
+
+	UPROPERTY()
+	float Timestamp = 0.0F;
+};
 
 UCLASS()
 class FGNET_API AFGPlayer : public APawn
@@ -23,6 +49,9 @@ protected:
 
 public:	
 	virtual void Tick(float DeltaTime) override;
+
+	UFUNCTION()
+	void SendNetUpdate();
 
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
@@ -47,11 +76,11 @@ public:
 	UFUNCTION(BlueprintPure)
 	int32 GetPing() const;
 
-	UFUNCTION(Server, Unreliable)
-	void Server_SendLocation(const FVector& LocationToSend);
-
-	UFUNCTION(NetMulticast, Unreliable)
-	void Mulitcast_SendLcation(const FVector& LocationToSend);
+	//UFUNCTION(Server, Unreliable)
+	//void Server_SendLocation(const FVector& LocationToSend);
+	//
+	//UFUNCTION(NetMulticast, Unreliable)
+	//void Mulitcast_SendLcation(const FVector& LocationToSend);
 
 	UFUNCTION(Server, Unreliable)
 	void Server_SendRotation(const FRotator& RotationToSend);
@@ -59,11 +88,25 @@ public:
 	UFUNCTION(NetMulticast, Unreliable)
 	void Mulitcast_SendRotation(const FRotator& RotationToSend);
 
-	void AppendLastPositions(const FVector& Location);
+	UFUNCTION(Server, Unreliable)
+	void Server_SendLocationData(const FNetLocationData& DataToSend);
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void Mulitcast_SendLocationData(const FNetLocationData& DataToSend);
 
 	void PredictedLocationUpdate(float DeltaTime);
 	
 private:
+	float Timer = 0.0F;
+	float LastTimer = 0.0F;
+	FVector LastVelocity = FVector::ZeroVector;
+
+	UFUNCTION(BlueprintPure)
+	float GetTimer() const { return Timer; }
+
+	UFUNCTION(BlueprintPure)
+	float GetLastTimer() const { return LastTimer; }
+
 	static constexpr int32 NumMovesStored = 8;
 	static constexpr int32 LastMoveIndex = NumMovesStored - 1;
 
@@ -88,12 +131,6 @@ private:
 
 	FRotator InterpTargetRotation = FRotator::ZeroRotator;
 
-	TArray<FVector, TFixedAllocator<NumMovesStored>> LastPositions;
-
-	UPROPERTY(EditAnywhere, Category = Movement)
-	float PredictAheadAmount = 3.0F;
-	
-	FVector PredictedLocation = FVector::ZeroVector;
 
 	bool bIsBraking = false;
 

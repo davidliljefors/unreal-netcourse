@@ -10,7 +10,9 @@
 #include "Camera/CameraComponent.h"
 #include "Engine/NetDriver.h"
 #include "GameFramework/GameStateBase.h"
+#include <Kismet/KismetSystemLibrary.h>
 
+FTimerHandle NetTick;
 
 AFGPlayer::AFGPlayer()
 {
@@ -33,22 +35,27 @@ AFGPlayer::AFGPlayer()
 
 
 	SetReplicateMovement(false);
-	LastPositions.Init({}, NumMovesStored);
 }
 
 void AFGPlayer::BeginPlay()
 {
 	Super::BeginPlay();
-	LastPositions.Init({}, NumMovesStored);
-	PredictedLocation = GetActorLocation();
-
 	MovementComponent->SetUpdatedComponent(CollisionComponent);
 
+	if (IsLocallyControlled())
+	{
+		GetWorld()->GetTimerManager().SetTimer(NetTick, this, &AFGPlayer::SendNetUpdate,  1.0F / 60.0F, true);
+	}
 }
 
 void AFGPlayer::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	Timer += DeltaTime;
+	if (Timer > 300.0F)
+	{
+		Timer -= 300.0F;
+	}
 
 	if (IsLocallyControlled())
 	{
@@ -70,19 +77,21 @@ void AFGPlayer::Tick(float DeltaTime)
 		MovementComponent->ApplyGravity();
 		FrameMovement.AddDelta(GetActorForwardVector() * MovementVelocity * DeltaTime);
 		MovementComponent->Move(FrameMovement);
-
-		Server_SendLocation(GetActorLocation());
-		Server_SendRotation(GetActorRotation());
-
-		//Server_SendMoveData_Implementation({ GetActorLocation(), GetActorRotation(), GameStateCachedPtr->GetServerWorldTimeSeconds() });
 	}
 	else
 	{
-		PredictedLocationUpdate(DeltaTime);
-
 		const FRotator NewRot = FMath::RInterpTo(GetActorRotation(), InterpTargetRotation, DeltaTime, InterpSpeedRotation);
 		SetActorRotation(NewRot);
+
+		const FVector NewLoc = FMath::VInterpTo(GetActorLocation(), InterpTargetLocation, DeltaTime, InterpSpeedLocation);
+		SetActorLocation(NewLoc);
 	}
+}
+
+void AFGPlayer::SendNetUpdate()
+{
+	Server_SendLocationData({ GetActorLocation(), GetActorForwardVector() * MovementVelocity, Timer });
+	Server_SendRotation(GetActorRotation());
 }
 
 void AFGPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -106,19 +115,6 @@ int32 AFGPlayer::GetPing() const
 	return 0;
 }
 
-void AFGPlayer::Server_SendLocation_Implementation(const FVector& LocationToSend)
-{
-	Mulitcast_SendLcation(LocationToSend);
-	
-}
-
-void AFGPlayer::Mulitcast_SendLcation_Implementation(const FVector& LocationToSend)
-{
-	if (!IsLocallyControlled())
-	{
-		AppendLastPositions(LocationToSend);
-	}
-}
 
 void AFGPlayer::Server_SendRotation_Implementation(const FRotator& RotationToSend)
 {
@@ -133,33 +129,26 @@ void AFGPlayer::Mulitcast_SendRotation_Implementation(const FRotator& RotationTo
 	}
 }
 
-void AFGPlayer::AppendLastPositions(const FVector& Location)
+void AFGPlayer::Server_SendLocationData_Implementation(const FNetLocationData& DataToSend)
 {
-	
-	for (int32 i = 1; i < LastPositions.Num(); ++i)
+	Mulitcast_SendLocationData(DataToSend);
+}
+
+void AFGPlayer::Mulitcast_SendLocationData_Implementation(const FNetLocationData& DataToReceive)
+{
+	if (!IsLocallyControlled())
 	{
-		LastPositions[i - 1] = LastPositions[i];
+		float Delta = DataToReceive.Timestamp - LastTimer;
+		LastTimer = DataToReceive.Timestamp;
+		LastVelocity = DataToReceive.Velocity;
+		InterpTargetLocation = DataToReceive.Location + LastVelocity * Delta;
 	}
-	LastPositions[LastMoveIndex] = Location;
-
-	FVector Deltas = FVector::ZeroVector;
-
-	for (int32 i = 1; i < LastPositions.Num(); ++i)
-	{
-		Deltas += LastPositions[i] - LastPositions[i - 1];
-	}
-	const FVector DeltaAvg = Deltas / LastPositions.Num();
-
-	PredictedLocation = LastPositions[LastMoveIndex] + PredictAheadAmount * DeltaAvg;
-
 }
 
 void AFGPlayer::PredictedLocationUpdate(float DeltaTime)
 {
-	const FVector StartPos = LastPositions[LastMoveIndex];
-	FVector ActualPos = FMath::VInterpTo(GetActorLocation(), PredictedLocation, DeltaTime, InterpSpeedLocation);
-	
-	SetActorLocation(ActualPos);
+	//const FVector MovementDelta = LastVelocity * DeltaTime;
+	//AddActorWorldOffset(MovementDelta);
 }
 
 void AFGPlayer::Handle_Accelerate(float Value)
