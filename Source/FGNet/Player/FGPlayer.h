@@ -76,11 +76,6 @@ public:
 	UFUNCTION(BlueprintPure)
 	int32 GetPing() const;
 
-	//UFUNCTION(Server, Unreliable)
-	//void Server_SendLocation(const FVector& LocationToSend);
-	//
-	//UFUNCTION(NetMulticast, Unreliable)
-	//void Mulitcast_SendLcation(const FVector& LocationToSend);
 
 	UFUNCTION(Server, Unreliable)
 	void Server_SendRotation(const FRotator& RotationToSend);
