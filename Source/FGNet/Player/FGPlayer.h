@@ -12,7 +12,8 @@ class USpringArmComponent;
 class UFGMovementComponent;
 class UStaticMeshComponent;
 class USphereComponent;
-
+class UFGPlayerSettings;
+class UFGNetDebugWidget;
 
 
 USTRUCT()
@@ -55,20 +56,8 @@ public:
 
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	UPROPERTY(EditAnywhere, Category = Movement)
-	float Acceleration = 500.0F;
-
-	UPROPERTY(EditAnywhere, Category = Movement)
-	float TurnSpeedDefault = 100.0F;
-
-	UPROPERTY(EditAnywhere, Category = Movement)
-	float MaxVelocity = 2000.0F;
-
-	UPROPERTY(EditAnywhere, Category = Movement, meta = (ClampMin = 0.0, ClampMax = 1.0))
-	float DefaultFriction = 0.75F;
-
-	UPROPERTY(EditAnywhere, Category = Movement, meta = (ClampMin = 0.0, ClampMax = 1.0))
-	float BrakingFriction = 0.001F;
+	UPROPERTY(EditAnywhere, Category = Settings)
+	UFGPlayerSettings* PlayerSettings = nullptr;
 
 	UFUNCTION(BlueprintPure)
 	bool IsBraking() const { return bIsBraking; }
@@ -76,26 +65,24 @@ public:
 	UFUNCTION(BlueprintPure)
 	int32 GetPing() const;
 
-	//UFUNCTION(Server, Unreliable)
-	//void Server_SendLocation(const FVector& LocationToSend);
-	//
-	//UFUNCTION(NetMulticast, Unreliable)
-	//void Mulitcast_SendLcation(const FVector& LocationToSend);
+	UPROPERTY(EditAnywhere, Category = Debug)
+	TSubclassOf<UFGNetDebugWidget> DebugMenuClass;
 
 	UFUNCTION(Server, Unreliable)
-	void Server_SendRotation(const FRotator& RotationToSend);
+	void Server_SendYaw(float NewYaw);
 
-	UFUNCTION(NetMulticast, Unreliable)
-	void Mulitcast_SendRotation(const FRotator& RotationToSend);
+	UFUNCTION(Server, Unreliable)
+	void Server_SendLocation(const FVector& NewLocation);
 
 	UFUNCTION(Server, Unreliable)
 	void Server_SendLocationData(const FNetLocationData& DataToSend);
 
 	UFUNCTION(NetMulticast, Unreliable)
 	void Mulitcast_SendLocationData(const FNetLocationData& DataToSend);
-
-	void PredictedLocationUpdate(float DeltaTime);
 	
+	void ShowDebugMenu();
+	void HideDebugMenu();
+
 private:
 	float Timer = 0.0F;
 	float LastTimer = 0.0F;
@@ -107,13 +94,25 @@ private:
 	UFUNCTION(BlueprintPure)
 	float GetLastTimer() const { return LastTimer; }
 
-	static constexpr int32 NumMovesStored = 8;
-	static constexpr int32 LastMoveIndex = NumMovesStored - 1;
-
 	void Handle_Accelerate(float Value);
 	void Handle_Turn(float Value);
 	void Handle_BrakePressed();
 	void Handle_BrakeReleased();
+
+	void Handle_DebugMenuPressed();
+
+	void CreateDebugWidget();
+
+	UPROPERTY(Transient)
+	UFGNetDebugWidget* DebugMenuInstance = nullptr;
+
+	bool bShowDebugMenu = false;
+
+	UPROPERTY(Replicated)
+	float ReplicatedYaw = 0.0F;
+
+	UPROPERTY(Replicated)
+	FVector ReplicatedLocation;
 
 	float Forward = 0.0F;
 	float Turn = 0.0F;
@@ -122,7 +121,7 @@ private:
 	float Yaw = 0.0F;
 
 	UPROPERTY(EditAnywhere, Category = Movement)
-	float InterpSpeedLocation = 5.0F;
+	float InterpSpeedLocation = 5.0F; 
 
 	FVector InterpTargetLocation = FVector::ZeroVector;
 
