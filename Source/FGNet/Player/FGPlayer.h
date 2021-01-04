@@ -14,28 +14,9 @@ class UStaticMeshComponent;
 class USphereComponent;
 class UFGPlayerSettings;
 class UFGNetDebugWidget;
+class AFGPickup;
+class AFGRocket;
 
-
-USTRUCT()
-struct FNetLocationData
-{
-	GENERATED_BODY()
-
-	FNetLocationData() = default;
-
-	FNetLocationData(const FVector& InLocation, const FVector& InVelocity, float InTimestamp)
-		:Location(InLocation), Velocity(InVelocity), Timestamp(InTimestamp)
-	{}
-
-	UPROPERTY()
-	FVector Location = FVector::ZeroVector;
-
-	UPROPERTY()
-	FVector Velocity = FVector::ZeroVector;
-
-	UPROPERTY()
-	float Timestamp = 0.0F;
-};
 
 UCLASS()
 class FGNET_API AFGPlayer : public APawn
@@ -74,34 +55,71 @@ public:
 	UFUNCTION(Server, Unreliable)
 	void Server_SendLocation(const FVector& NewLocation);
 
-	UFUNCTION(Server, Unreliable)
-	void Server_SendLocationData(const FNetLocationData& DataToSend);
+	void OnPickup(AFGPickup* Pickup);
 
-	UFUNCTION(NetMulticast, Unreliable)
-	void Mulitcast_SendLocationData(const FNetLocationData& DataToSend);
-	
+	UFUNCTION(Server, Reliable)
+	void Server_OnPickup(AFGPickup* Pickup);
+
+	UFUNCTION(Client, Reliable)
+	void Client_OnPickupRockets(AFGPickup* Pickup, int32 RocketAmount);
+
 	void ShowDebugMenu();
 	void HideDebugMenu();
 
+	UFUNCTION(BlueprintImplementableEvent, Category = Player, meta = (DisplayName = "On Num Rockets Changed"))
+	void BP_OnNumRocketsChanged(int32 NewAmount);
+
+	void FireRocket();
+
+	void SpawnRockets();
+
 private:
-	float Timer = 0.0F;
-	float LastTimer = 0.0F;
-	FVector LastVelocity = FVector::ZeroVector;
 
-	UFUNCTION(BlueprintPure)
-	float GetTimer() const { return Timer; }
+	int32 GetNumActiveRockets() const;
 
-	UFUNCTION(BlueprintPure)
-	float GetLastTimer() const { return LastTimer; }
+	FVector GetRocketStartLocation() const;
+
+	AFGRocket* GetFreeRocket() const;
+
+	UFUNCTION(Server, Reliable)
+	void Server_FireRocket(AFGRocket* Rocket, const FVector& RocketStartLocation, const FRotator& RocketStartRotation);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_FireRocket(AFGRocket* Rocket, const FVector& RocketStartLocation, const FRotator& RocketStartRotation);
+
+	UFUNCTION(Client, Reliable)
+	void Client_RemoveRocket(AFGRocket* ToRemove);
+
 
 	void Handle_Accelerate(float Value);
 	void Handle_Turn(float Value);
 	void Handle_BrakePressed();
 	void Handle_BrakeReleased();
+	void Handle_FirePressed();
 
 	void Handle_DebugMenuPressed();
 
 	void CreateDebugWidget();
+
+private:
+
+	UPROPERTY(Replicated, Transient)
+	TArray<AFGRocket*> RocketInstances;
+
+	int32 ServerNumRockets = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = Player, meta = (AllowPrivateAccess = true))
+	int32 NumRockets = 0;
+
+	UPROPERTY(EditAnywhere, Category = Weapon)
+	TSubclassOf<AFGRocket> RocketClass;
+
+	UPROPERTY(EditAnywhere, Category = Weapon)
+	bool bUnlimitedRockets = false;
+
+	int32 MaxActiveRockets = 3;
+
+	float FireCooldownElapsed = 0.0f;
 
 	UPROPERTY(Transient)
 	UFGNetDebugWidget* DebugMenuInstance = nullptr;
@@ -129,7 +147,6 @@ private:
 	float InterpSpeedRotation = 5.0F;
 
 	FRotator InterpTargetRotation = FRotator::ZeroRotator;
-
 
 	bool bIsBraking = false;
 

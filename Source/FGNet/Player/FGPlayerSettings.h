@@ -24,4 +24,7 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = Movmement, meta = (ClampMin = 0.0, ClampMax = 1.0))
 	float BrakingFriction = 0.001F;
+
+	UPROPERTY(EditAnywhere, Category = Fire, meta = (ClampMin = 0.0))
+	float FireCooldown = 0.15F;
 };
