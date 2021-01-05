@@ -37,7 +37,7 @@ AFGPlayer::AFGPlayer()
 
 	MovementComponent = CreateDefaultSubobject<UFGMovementComponent>(TEXT("MovementComponent"));
 
-
+	
 	SetReplicateMovement(false);
 }
 
@@ -81,7 +81,7 @@ void AFGPlayer::Tick(float DeltaTime)
 		const float MovementDirection = MovementVelocity > 0.0F ? Turn : -Turn;
 
 		Yaw += (MovementDirection * TurnSpeed) * DeltaTime;
-		FQuat WantedFacingDirection = FQuat(FVector::UpVector, FMath::DegreesToRadians(Yaw));
+		const FQuat WantedFacingDirection = FQuat(FVector::UpVector, FMath::DegreesToRadians(Yaw));
 		MovementComponent->SetFacingRotation(WantedFacingDirection);
 
 		FFGFrameMovement FrameMovement = MovementComponent->CreateFrameMovement();
@@ -148,9 +148,31 @@ void AFGPlayer::Server_SendLocation_Implementation(const FVector& NewLocation)
 
 void AFGPlayer::OnPickup(AFGPickup* Pickup)
 {
-	if (IsLocallyControlled())
+	if(IsLocallyControlled())
 	{
+		Pickup->HidePickup();
+		PredictPickedUp(Pickup);
 		Server_OnPickup(Pickup);
+	}
+}
+
+void AFGPlayer::PredictPickedUp(AFGPickup* Pickup)
+{
+	switch(Pickup->PickupType)
+	{
+	case EFGPickupType::Health:
+		{
+			Health += Pickup->AmountOnPickup;
+			break;
+		}
+	case EFGPickupType::Rocket:
+		{
+			NumRockets += Pickup->AmountOnPickup;
+			BP_OnNumRocketsChanged(NumRockets);
+			break;
+		}
+	default:
+		ensure(false); // "Unhandled pickup type"
 	}
 }
 
@@ -158,25 +180,45 @@ void AFGPlayer::Server_OnPickup_Implementation(AFGPickup* Pickup)
 {
 	UE_LOG(LogTemp, Warning, TEXT("Serverside, Name: %s"), *Pickup->GetName());
 
-	ServerNumRockets += Pickup->NumRockets;
-	Client_OnPickupRockets(Pickup, Pickup->NumRockets);
-	Pickup->HandlePickup();
+	if(!Pickup->IsPickedUp())
+	{
+		ServerNumRockets += Pickup->AmountOnPickup;
+		Multicast_OnPickup(Pickup);
+	}
+	if(GetLocalRole() < ROLE_Authority)
+	{
+		Client_ConfirmPickup(Pickup, !Pickup->IsPickedUp());
+	}
 }
 
-void AFGPlayer::Client_OnPickupRockets_Implementation(AFGPickup* Pickup, int32 RocketAmount)
+void AFGPlayer::Client_ConfirmPickup_Implementation(AFGPickup* Pickup, bool bConfirmed)
 {
-	if (Pickup == nullptr)
+	if(!bConfirmed) // Pickup wasn't confirmed. Rollback.
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Pickup is nullptr in client"));
+		switch(Pickup->PickupType)
+		{
+		case EFGPickupType::Health:
+			{
+				Health -= Pickup->AmountOnPickup;
+				Pickup->ShowPickup();
+				break;
+			}
+		case EFGPickupType::Rocket:
+			{
+				NumRockets -= Pickup->AmountOnPickup;
+				BP_OnNumRocketsChanged(NumRockets);
+				Pickup->ShowPickup();
+				break;
+			}
+		default:
+			ensure(false); // "Unhandled pickup type"
+		}
 	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Clientside, Name: %s"), *Pickup->GetName());
-	}
+}
 
-	NumRockets += RocketAmount;
-	UE_LOG(LogTemp, Warning, TEXT("Picked up: %i | Total: %i"), RocketAmount, NumRockets);
-	BP_OnNumRocketsChanged(NumRockets);
+void AFGPlayer::Multicast_OnPickup_Implementation(AFGPickup* Pickup)
+{
+	Pickup->HandlePickup();
 }
 
 void AFGPlayer::ShowDebugMenu()
@@ -235,12 +277,14 @@ void AFGPlayer::FireRocket()
 		if (HasAuthority())
 		{
 			Server_FireRocket(NewRocket, GetRocketStartLocation(), GetActorRotation());
+			BP_OnNumRocketsChanged(NumRockets);
 		}
 		else
 		{
 			NumRockets--;
 			NewRocket->StartMoving(GetActorForwardVector(), GetRocketStartLocation());
 			Server_FireRocket(NewRocket, GetRocketStartLocation(), GetActorRotation());
+			BP_OnNumRocketsChanged(NumRockets);
 		}
 	}
 }

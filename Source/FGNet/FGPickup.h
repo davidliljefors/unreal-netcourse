@@ -27,6 +27,8 @@ public:
 
 	bool IsPickedUp() const { return bPickedUp; }
 	void HandlePickup();
+	void HidePickup();
+	void ShowPickup();
 
 	UPROPERTY(VisibleDefaultsOnly, Category = Collision)
 	USphereComponent* SphereComponent;
@@ -38,7 +40,7 @@ public:
 	EFGPickupType PickupType = EFGPickupType::Rocket;
 
 	UPROPERTY(EditAnywhere)
-	int32 NumRockets = 5;
+	int32 AmountOnPickup = 5;
 
 	UPROPERTY(EditAnywhere)
 	float ReActivateTime = 5.0F;

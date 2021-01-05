@@ -56,12 +56,16 @@ public:
 	void Server_SendLocation(const FVector& NewLocation);
 
 	void OnPickup(AFGPickup* Pickup);
+	void PredictPickedUp(AFGPickup* Pickup);
 
 	UFUNCTION(Server, Reliable)
 	void Server_OnPickup(AFGPickup* Pickup);
 
-	UFUNCTION(Client, Reliable)
-	void Client_OnPickupRockets(AFGPickup* Pickup, int32 RocketAmount);
+	UFUNCTION(Server, Reliable)
+	void Client_ConfirmPickup(AFGPickup* Pickup, bool bConfirmed);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_OnPickup(AFGPickup* Pickup);
 
 	void ShowDebugMenu();
 	void HideDebugMenu();
@@ -87,6 +91,7 @@ private:
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_FireRocket(AFGRocket* Rocket, const FVector& RocketStartLocation, const FRotator& RocketStartRotation);
 
+
 	UFUNCTION(Client, Reliable)
 	void Client_RemoveRocket(AFGRocket* ToRemove);
 
@@ -102,6 +107,11 @@ private:
 	void CreateDebugWidget();
 
 private:
+
+	UPROPERTY(BlueprintReadOnly, Category = Player, meta = (AllowPrivateAccess = true))
+	int32 Health = 100;
+
+	int32 ServerHealth = 100;
 
 	UPROPERTY(Replicated, Transient)
 	TArray<AFGRocket*> RocketInstances;
