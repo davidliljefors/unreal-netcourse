@@ -21,7 +21,7 @@ AFGPickup::AFGPickup()
 	MeshComponent->SetupAttachment(RootComponent);
 	MeshComponent->SetGenerateOverlapEvents(false);
 	MeshComponent->SetCollisionProfileName(TEXT("NoCollision"));
-	
+
 	SetReplicates(true);
 }
 
@@ -65,11 +65,13 @@ void AFGPickup::Tick(float DeltaTime)
 	const FVector NewLocation = CachedMeshRelativeLocation + FVector(0.0f, 0.0f, PulsatingValue);
 	FHitResult Hit;
 	MeshComponent->SetRelativeLocation(NewLocation, false, &Hit, ETeleportType::TeleportPhysics);
-	MeshComponent->AddRelativeRotation(FRotator(0.0f, 20.0f * DeltaTime, 0.0f), false, &Hit, ETeleportType::TeleportPhysics);
+	MeshComponent->AddRelativeRotation(FRotator(0.0f, 20.0f * DeltaTime, 0.0f), false, &Hit,
+	                                   ETeleportType::TeleportPhysics);
 }
 
 void AFGPickup::OverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+                             UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep,
+                             const FHitResult& SweepResult)
 {
 	if (bPickedUp)
 	{
@@ -78,18 +80,10 @@ void AFGPickup::OverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* O
 
 	if (AFGPlayer* Player = Cast<AFGPlayer>(OtherActor))
 	{
-		Player->OnPickup(this);
-		
-		// HandlePickup();
-		// if (Player->IsLocallyControlled())
-		// {
-		// 	
-		// 	bPickedUp = true;
-		// 	SphereComponent->SetCollisionProfileName(TEXT("NoCollision"));
-		// 	RootComponent->SetVisibility(false, true);
-		// 	GetWorldTimerManager().SetTimer(ReActivateHandle, this, &AFGPickup::ReActivatePickup, ReActivateTime, false);
-		// 	SetActorTickEnabled(false);
-		// }
+		if (Player->IsLocallyControlled())
+		{
+			Player->OnPickup(this);
+		}
 	}
 }
 
