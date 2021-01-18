@@ -48,7 +48,7 @@ public:
 
 	bool IsFree() const { return bIsFree; }
 
-	void Explode();
+	void Explode(AActor* HitActor);
 	void MakeFree();
 
 private:

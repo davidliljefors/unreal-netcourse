@@ -163,6 +163,7 @@ void AFGPlayer::PredictPickedUp(AFGPickup* Pickup)
 	case EFGPickupType::Health:
 		{
 			Health += Pickup->AmountOnPickup;
+			BP_OnHealthChanged(Health);
 			break;
 		}
 	case EFGPickupType::Rocket:
@@ -180,11 +181,30 @@ void AFGPlayer::Server_OnPickup_Implementation(AFGPickup* Pickup)
 {
 	UE_LOG(LogTemp, Warning, TEXT("Serverside, Name: %s"), *Pickup->GetName());
 
+	
 	if(!Pickup->IsPickedUp())
 	{
-		ServerNumRockets += Pickup->AmountOnPickup;
-		Multicast_OnPickup(Pickup);
+		switch(Pickup->PickupType)
+		{
+		case EFGPickupType::Health:
+			{
+				ServerHealth += Pickup->AmountOnPickup;
+				Multicast_UpdateItemCount(Pickup->PickupType, ServerNumRockets);
+				Multicast_OnPickup(Pickup);
+				break;
+			}
+		case EFGPickupType::Rocket:
+			{
+				ServerNumRockets += Pickup->AmountOnPickup;
+				Multicast_UpdateItemCount(Pickup->PickupType, ServerNumRockets);
+				Multicast_OnPickup(Pickup);
+				break;
+			}
+		default:
+			ensure(false); // "Unhandled pickup type"
+		}
 	}
+	
 	if(GetLocalRole() < ROLE_Authority)
 	{
 		Client_ConfirmPickup(Pickup, !Pickup->IsPickedUp());
@@ -193,13 +213,14 @@ void AFGPlayer::Server_OnPickup_Implementation(AFGPickup* Pickup)
 
 void AFGPlayer::Client_ConfirmPickup_Implementation(AFGPickup* Pickup, bool bConfirmed)
 {
-	if(!bConfirmed) // Pickup wasn't confirmed. Rollback.
+	if(!bConfirmed) // Pickup wasn't confirmed. Revert.
 	{
 		switch(Pickup->PickupType)
 		{
 		case EFGPickupType::Health:
 			{
 				Health -= Pickup->AmountOnPickup;
+				BP_OnHealthChanged(Health);
 				Pickup->ShowPickup();
 				break;
 			}
@@ -243,6 +264,35 @@ void AFGPlayer::HideDebugMenu()
 
 	DebugMenuInstance->SetVisibility(ESlateVisibility::Collapsed);
 	DebugMenuInstance->BP_OnHideWidget();
+}
+
+void AFGPlayer::Server_GetHit_Implementation(AFGRocket* HitBy)
+{
+	ServerHealth -= 25;
+	Multicast_GetHit(HitBy, ServerHealth);
+}
+
+void AFGPlayer::Multicast_GetHit_Implementation(AFGRocket* HitBy, int32 NewHealth)
+{
+	Health = NewHealth;
+	BP_OnHealthChanged(Health);
+}
+
+void AFGPlayer::Multicast_UpdateItemCount_Implementation(EFGPickupType Type, int32 ServerAmount)
+{
+	if(!IsLocallyControlled())
+	{
+		switch(Type)
+		{
+		case EFGPickupType::Rocket:
+			BP_OnNumRocketsChanged(ServerAmount);
+			break;
+		case EFGPickupType::Health:
+			BP_OnHealthChanged(ServerAmount);
+			break;
+		default: ensure(false); // "Unhandled pickup type";
+		}
+	}
 }
 
 void AFGPlayer::FireRocket()
@@ -357,6 +407,7 @@ void AFGPlayer::Server_FireRocket_Implementation(AFGRocket* Rocket, const FVecto
 		const float DeltaYaw = FMath::FindDeltaAngleDegrees(RocketStartRotation.Yaw, GetActorForwardVector().Rotation().Yaw);
 		const FRotator NewFacingRotation = RocketStartRotation + FRotator(0.0f, DeltaYaw, 0.0f);
 		ServerNumRockets--;
+		Multicast_UpdateItemCount(EFGPickupType::Rocket, ServerNumRockets);
 		Multicast_FireRocket(Rocket, RocketStartLocation, NewFacingRotation);
 	}
 }

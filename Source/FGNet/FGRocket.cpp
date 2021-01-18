@@ -3,7 +3,7 @@
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "DrawDebugHelpers.h"
-
+#include "Player/FGPlayer.h"
 
 
 AFGRocket::AFGRocket()
@@ -61,12 +61,12 @@ void AFGRocket::Tick(float DeltaTime)
 
 	if (Hit.bBlockingHit)
 	{
-		Explode();
+		Explode(Hit.Actor.Get());
 	}
 
 	if (LifeTimeElapsed < 0.0f)
 	{
-		Explode();
+		Explode(nullptr);
 	}
 }
 
@@ -89,8 +89,15 @@ void AFGRocket::ApplyCorrection(const FVector& Forward)
 	FacingRotationCorrection = Forward.ToOrientationQuat();
 }
 
-void AFGRocket::Explode()
+void AFGRocket::Explode(AActor* HitActor)
 {
+	AFGPlayer* Player = Cast<AFGPlayer>(HitActor);
+	if(Player && Player->IsLocallyControlled())
+	{
+		Player->Server_GetHit(this);
+	}
+	
+	
 	if (Explosion != nullptr)
 	{
 		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Explosion, GetActorLocation(), GetActorRotation(), true);

@@ -4,6 +4,8 @@
 #include "Containers/Array.h"
 #include "TimerManager.h"
 #include "Engine/EngineTypes.h"
+#include "FGNet/FGPickup.h"
+
 
 #include "FGPlayer.generated.h"
 
@@ -69,10 +71,22 @@ public:
 
 	void ShowDebugMenu();
 	void HideDebugMenu();
+	
+	UFUNCTION(Server, Reliable, BlueprintCallable)
+	void Server_GetHit(AFGRocket* HitBy);
 
+	UFUNCTION(NetMulticast, Reliable)
+    void Multicast_GetHit(AFGRocket* HitBy, int32 NewHealth);
+
+	UFUNCTION(NetMulticast, Reliable)
+    void Multicast_UpdateItemCount(EFGPickupType Type, int32 ServerAmount);
+	
 	UFUNCTION(BlueprintImplementableEvent, Category = Player, meta = (DisplayName = "On Num Rockets Changed"))
 	void BP_OnNumRocketsChanged(int32 NewAmount);
 
+	UFUNCTION(BlueprintImplementableEvent, Category = Player, meta = (DisplayName = "On Health Changed"))
+    void BP_OnHealthChanged(int32 NewAmount);
+	
 	void FireRocket();
 
 	void SpawnRockets();
@@ -90,7 +104,6 @@ private:
 
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_FireRocket(AFGRocket* Rocket, const FVector& RocketStartLocation, const FRotator& RocketStartRotation);
-
 
 	UFUNCTION(Client, Reliable)
 	void Client_RemoveRocket(AFGRocket* ToRemove);
